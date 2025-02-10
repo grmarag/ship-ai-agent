@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "ship-ai-agent"
+version = "0.1.0"
+description = ""
+authors = ["Grigorios Maragkakis <grigorios.maragkakis@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+langchain = "^0.3.17"
+langchain-community = "^0.3.16"
+langchain-openai = "^0.3.4"
+pypdf = "^5.2.0"
+python-dotenv = "^1.0.1"
+streamlit = "^1.42.0"
+openai = "^1.61.1"
+faiss-cpu = "^1.10.0"
+altair = "^5.5.0"
+tiktoken = "^0.8.0"
+chromadb = "^0.6.3"
+pdf2image = "^1.17.0"
+pytesseract = "^0.3.13"
+langchain-chroma = "^0.2.1"
+langgraph = "^0.2.70"
+pytest = "^8.3.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

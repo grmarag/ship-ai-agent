@@ -1,0 +1,43 @@
+<!-- src/templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LLM PDF Query</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2em;
+        }
+        input[type="text"] {
+            width: 80%;
+            padding: 0.5em;
+        }
+        input[type="submit"] {
+            padding: 0.5em 1em;
+            margin-top: 1em;
+        }
+        .answer {
+            margin-top: 2em;
+            padding: 1em;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>LLM PDF Query</h1>
+    <form method="post">
+        <label for="question">Enter your question:</label><br>
+        <input type="text" id="question" name="question" value="{{ question }}" required>
+        <br><br>
+        <input type="submit" value="Submit">
+    </form>
+    {% if answer %}
+    <div class="answer">
+        <h2>Answer:</h2>
+        <p>{{ answer }}</p>
+    </div>
+    {% endif %}
+</body>
+</html>
