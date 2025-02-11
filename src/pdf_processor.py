@@ -1,4 +1,5 @@
 import os
+import logging
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
@@ -9,6 +10,9 @@ from pdf2image import pdfinfo_from_path, convert_from_path
 import pytesseract
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def process_chunk(file_path, start_page, last_page, file_name, dpi):
     """
@@ -23,17 +27,17 @@ def process_chunk(file_path, start_page, last_page, file_name, dpi):
             last_page=last_page
         )
     except Exception as e:
-        print(f"Error converting pages {start_page} to {last_page} of {file_name}: {e}")
+        logger.error(f"Error converting pages {start_page} to {last_page} of {file_name}: {e}")
         return []
     
     docs = []
     for i, page in enumerate(pages):
         page_number = start_page + i
-        print(f"Performing OCR on page {page_number} of {file_name}...")
+        logger.info(f"Performing OCR on page {page_number} of {file_name}...")
         try:
             text = pytesseract.image_to_string(page)
         except Exception as ex:
-            print(f"Error during OCR on page {page_number}: {ex}")
+            logger.error(f"Error during OCR on page {page_number}: {ex}")
             text = ""
         metadata = {"source": file_name, "page": page_number}
         docs.append(Document(page_content=text, metadata=metadata))
@@ -51,17 +55,17 @@ class PDFProcessor:
         """
         pdf_files = [f for f in os.listdir(self.data_folder) if f.lower().endswith('.pdf')]
         if not pdf_files:
-            print(f"No PDF files found in {self.data_folder}.")
+            logger.warning(f"No PDF files found in {self.data_folder}.")
         for pdf_file in pdf_files:
             file_path = os.path.join(self.data_folder, pdf_file)
-            print(f"Loading {file_path} ...")
+            logger.info(f"Loading {file_path} ...")
             loader = PyPDFLoader(file_path)
             docs = loader.load()
             
             # Check if the loaded documents contain meaningful text.
             # If not, assume this is a scanned PDF and use OCR.
             if not docs or all(len(doc.page_content.strip()) == 0 for doc in docs):
-                print(f"No text extracted from {pdf_file}. Assuming it's a scanned PDF. Running OCR...")
+                logger.info(f"No text extracted from {pdf_file}. Assuming it's a scanned PDF. Running OCR...")
                 docs = self.load_scanned_pdf(file_path)
             else:
                 # For non-scanned PDFs, ensure metadata (source and page number) is set.
@@ -83,7 +87,7 @@ class PDFProcessor:
             info = pdfinfo_from_path(file_path)
             maxPages = info["Pages"]
         except Exception as e:
-            print(f"Error getting page count from {file_path}: {e}")
+            logger.error(f"Error getting page count from {file_path}: {e}")
             return ocr_docs
 
         file_name = os.path.basename(file_path)
@@ -93,7 +97,7 @@ class PDFProcessor:
         for start_page in range(1, maxPages + 1, 10):
             last_page = min(start_page + 10 - 1, maxPages)
             chunks.append((file_path, start_page, last_page, file_name, dpi))
-            print(f"Scheduled conversion for pages {start_page} to {last_page} of {file_name}...")
+            logger.info(f"Scheduled conversion for pages {start_page} to {last_page} of {file_name}...")
 
         # Use ProcessPoolExecutor to process each chunk concurrently.
         max_workers = min(len(chunks), multiprocessing.cpu_count())
@@ -104,7 +108,7 @@ class PDFProcessor:
                     chunk_docs = future.result()
                     ocr_docs.extend(chunk_docs)
                 except Exception as e:
-                    print(f"Error processing a chunk: {e}")
+                    logger.error(f"Error processing a chunk: {e}")
 
         return ocr_docs
 
@@ -120,9 +124,10 @@ class PDFProcessor:
         )
         split_docs = text_splitter.split_documents(docs)
 
-        # Ensure metadata is preserved for each chunk
+        # Prepend source info (PDF file and page number) to each chunk's content.
         for doc in split_docs:
-            doc.metadata["source"] = doc.metadata.get("source", "Unknown PDF")
-            doc.metadata["page"] = doc.metadata.get("page", "Unknown Page")
+            source = doc.metadata.get("source", "Unknown PDF")
+            page = doc.metadata.get("page", "Unknown Page")
+            doc.page_content = f"[{source} - Page {page}]\n" + doc.page_content
 
         return split_docs

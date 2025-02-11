@@ -1,7 +1,11 @@
 import os
+import logging
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from src.config import Config
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class VectorStore:
     def __init__(self, persist_directory: str = Config.CHROMA_DB_DIR):
@@ -11,7 +15,7 @@ class VectorStore:
 
     def create_db(self, docs):
         """Create a new Chroma vector database from the documents and persist it."""
-        print("Creating a new Chroma vector database...")
+        logger.info("Creating a new Chroma vector database...")
         self.db = Chroma.from_documents(
             docs, self.embeddings, persist_directory=self.persist_directory
         )
@@ -19,13 +23,13 @@ class VectorStore:
     def load_db(self):
         """Load an existing Chroma database."""
         if os.path.exists(self.persist_directory) and os.listdir(self.persist_directory):
-            print("Loading existing Chroma database...")
+            logger.info("Loading existing Chroma database...")
             self.db = Chroma(
                 persist_directory=self.persist_directory,
                 embedding_function=self.embeddings
             )
         else:
-            print("No existing database found at the specified directory.")
+            logger.warning("No existing database found at the specified directory.")
 
     def get_retriever(self):
         """Return a retriever interface to query the database."""

@@ -1,56 +1,72 @@
+import pytest
+from unittest.mock import MagicMock
+
+# Import the ConversationalRetrievalChain so we can patch its factory method.
+from langchain.chains import ConversationalRetrievalChain
+
+# Import the QueryEngine and Config from your project.
 from src.query_engine import QueryEngine
-from langchain.schema import Document
+from src.config import Config
 
-# A dummy conversational chain that always returns a fixed answer.
-class DummyConversationalChain:
-    def invoke(self, inputs):
-        return {"answer": "Dummy answer"}
 
-def dummy_from_llm(*args, **kwargs):
-    return DummyConversationalChain()
-
-def dummy_retriever():
-    return "dummy_retriever"
-
-# Dummy vector store whose database returns no high-similarity documents.
-class DummyDB:
-    def similarity_search_with_relevance_scores(self, question, k):
-        return []  # no relevant results
+# Define dummy classes for dependencies that are not used in our test.
+class DummyRetriever:
+    pass
 
 class DummyVectorStore:
-    def __init__(self):
-        self.db = DummyDB()
+    pass
 
-def test_query_without_sources(monkeypatch):
-    # Monkeypatch the chain factory so that our dummy chain is used.
-    monkeypatch.setattr("src.query_engine.ConversationalRetrievalChain.from_llm", dummy_from_llm)
-    dummy_store = DummyVectorStore()
-    query_engine = QueryEngine(vector_store=dummy_store, retriever=dummy_retriever())
-    
-    response = query_engine.query("What is the test?")
-    assert "Dummy answer" in response
-    # Since similarity search returns no highly relevant results, no sources should be appended.
-    assert "Sources:" not in response
+@pytest.fixture(autouse=True)
+def set_dummy_config():
+    """
+    Automatically set dummy config values for testing.
+    """
+    Config.OPENAI_API_KEY = "dummy-api-key"
+    Config.PROMPT_TEMPLATE = (
+        "Test prompt: context: {context}, chat_history: {chat_history}, question: {question}"
+    )
+    yield
+    # Cleanup or reset config values here if necessary.
 
-# Case when similarity search returns a high score.
-class DummyDBHigh:
-    def similarity_search_with_relevance_scores(self, question, k):
-        # Dummy Document with a high relevance score.
-        dummy_doc = Document(page_content="Relevant content", metadata={"source": "manual.pdf", "page": 42})
-        return [(dummy_doc, 0.9)]
+def test_query_engine(monkeypatch):
+    """
+    Test that QueryEngine.query returns the expected answer and that the underlying
+    chain is invoked with the correct parameters.
+    """
+    # The answer we expect the dummy chain to return.
+    dummy_answer = "This is a test answer."
 
-class DummyVectorStoreHigh:
-    def __init__(self):
-        self.db = DummyDBHigh()
+    # Create a dummy chain with an 'invoke' method that always returns dummy_answer.
+    dummy_chain = MagicMock()
+    dummy_chain.invoke.return_value = {"answer": dummy_answer}
 
-def test_query_with_sources(monkeypatch):
-    monkeypatch.setattr("src.query_engine.ConversationalRetrievalChain.from_llm", dummy_from_llm)
-    dummy_store = DummyVectorStoreHigh()
-    query_engine = QueryEngine(vector_store=dummy_store, retriever=dummy_retriever())
-    
-    response = query_engine.query("What is the test?")
-    # Check that the answer includes the sources information.
-    assert "Dummy answer" in response
-    assert "Sources:" in response
-    assert "manual.pdf" in response
-    assert "Page 42" in response
+    # Monkey-patch the from_llm factory method to return our dummy chain.
+    monkeypatch.setattr(
+        ConversationalRetrievalChain,
+        "from_llm",
+        lambda llm, retriever, memory, combine_docs_chain_kwargs: dummy_chain,
+    )
+
+    # Instantiate QueryEngine with dummy vector store and retriever.
+    vector_store = DummyVectorStore()
+    retriever = DummyRetriever()
+    query_engine = QueryEngine(vector_store, retriever)
+
+    # Define a test question.
+    test_question = "How to remove the cylinder head?"
+
+    # Call the query method.
+    returned_answer = query_engine.query(test_question)
+
+    # Assert that the returned answer matches the dummy answer.
+    assert returned_answer == dummy_answer
+
+    # Verify that the dummy chain's 'invoke' method was called exactly once.
+    dummy_chain.invoke.assert_called_once()
+
+    # Retrieve the arguments with which the dummy chain was called.
+    call_args = dummy_chain.invoke.call_args[0][0]
+    # Check that the question passed to the chain is as expected.
+    assert call_args["question"] == test_question
+    # Since the memory is empty at the first query, chat_history should be an empty string.
+    assert call_args["chat_history"] == ""

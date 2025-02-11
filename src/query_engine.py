@@ -1,12 +1,15 @@
+import logging
 from langchain_openai import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from langchain.chains import ConversationalRetrievalChain
 from src.config import Config
-import os
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class QueryEngine:
-    def __init__(self, vector_store, retriever, temperature: float = 0.2, top_k: int = 3):
+    def __init__(self, vector_store, retriever, temperature: float = 0.0, top_k: int = 3):
         """
         Initializes the QueryEngine with a vector store, retriever, and conversation memory.
         """
@@ -14,7 +17,7 @@ class QueryEngine:
         self.llm = ChatOpenAI(
             temperature=temperature,
             openai_api_key=Config.OPENAI_API_KEY,
-            model='gpt-4o-mini'
+            model='gpt-4-turbo-preview'
         )
         self.retriever = retriever
         self.top_k = top_k
@@ -39,34 +42,16 @@ class QueryEngine:
             memory=self.memory,
             combine_docs_chain_kwargs={"prompt": qa_prompt}
         )
+        logger.info("QueryEngine initialized.")
 
     def query(self, question: str) -> str:
-        """
-        Processes the user's question by:
-          1. Extracting the current chat history from memory.
-          2. Invoking the conversational chain with the question and formatted chat history.
-          3. Optionally, appending source information if PDF-related documents are found.
-        """
-        # Extract the conversation messages (a list) from the memory and join their content.
+        logger.info("Processing query: %s", question)
         chat_history_messages = self.memory.chat_memory.messages
         chat_history = "\n".join([msg.content for msg in chat_history_messages])
-
-        # Call the conversational retrieval chain with both the question and the chat history.
+        
         result = self.qa_chain.invoke({
             "question": question,
             "chat_history": chat_history
         })
-
-        # If the question seems to be PDF-related, fetch relevant sources.
-        similarity_results = self.vector_store.db.similarity_search_with_relevance_scores(question, k=self.top_k)
-        if similarity_results and similarity_results[0][1] > 0.8:
-            sources = []
-            for doc, score in similarity_results:
-                full_source = doc.metadata.get("source", "Unknown PDF")
-                source_name = os.path.basename(full_source)
-                page = doc.metadata.get("page", "Unknown Page")
-                sources.append(f"{source_name} (Page {page})")
-            formatted_sources = "\n".join(f"- {source}" for source in sources)
-            return f"{result['answer']}\n\nSources:\n{formatted_sources}"
-        else:
-            return result['answer']
+        logger.info("LLM response obtained.")
+        return result['answer']

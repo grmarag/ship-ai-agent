@@ -1,10 +1,15 @@
 import os
 import streamlit as st
+import logging
 from src.config import Config
 from src.pdf_processor import PDFProcessor
 from src.vector_db import VectorStore
 from src.query_engine import QueryEngine
 from src.ui import run_ui
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 @st.cache_resource
 def initialize_vector_db():
@@ -12,7 +17,7 @@ def initialize_vector_db():
     pdf_processor = PDFProcessor()
     docs = pdf_processor.load_pdfs()
     if not docs:
-        print("No PDF documents found in the data folder. Exiting.")
+        logger.error("No PDF documents found in the data folder. Exiting.")
         return None
     split_docs = pdf_processor.split_documents(docs)
     
