@@ -24,6 +24,7 @@ ship-ai-agent/
 │   │── ui.py               # Streamlit UI implementation
 │── tests/                  # Folder containing unit tests
 │── app.py                  # Main entry point for the Streamlit application
+│── Dockerfile              # Dockerfile
 │── pyproject.toml          # Poetry configuration file
 │── .env                    # Environment variables (API keys)
 │── README.md               # Project documentation
